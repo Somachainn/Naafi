@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Laam DEX</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/10.4.0/stellar-sdk.min.js"></script>
+<style>
+  :root{
+    --bg1:#0f172a; --bg2:#1e293b;
+    --card:#ffffff; --muted:#6b7280;
+    --ink:#0f172a; --ink2:#111827;
+    --accent:#38bdf8;
+    --success:#44c776; --danger:#ef6b6b;
+    --soft:#f3f4f6; --line:#e5e7eb;
+    --shadow:0 10px 24px rgba(0,0,0,.18);
+    --radius:14px;
+    --maxw:1100px;
+  }
+  *{box-sizing:border-box}
+  body{
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    margin:0; color:#fff;
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    min-height:100vh;
+  }
+  .wrap{
+    max-width: var(--maxw);
+    margin: 24px auto;
+    padding: 0 16px 48px;
+  }
+  header{
+    text-align:center; margin: 4px 0 16px;
+  }
+  h1{
+    margin:0 0 10px; font-weight:800; font-size:2rem; color:var(--accent);
+  }
+  .balances{
+    display:flex; gap:10px; justify-content:center; align-items:center;
+    background: rgba(56,189,248,.12); color:#e8f7ff;
+    border:1px solid rgba(56,189,248,.35);
+    border-radius: 12px; padding:10px 14px; font-weight:600;
+  }
+  .grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-top:18px;
+  }
+  @media (max-width: 920px){ .grid{ grid-template-columns: 1fr; } }
+
+  .panel{
+    background: rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .card{
+    background: var(--card); color: var(--ink);
+    border:1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card h2{ margin: 0 0 10px; font-size: 1.05rem; color: var(--ink2); }
+  .help{ font-size:.85rem; color:var(--muted); }
+
+  .row{ margin: 10px 0; }
+  label{ display:block; font-weight:700; margin-bottom:6px; color:#374151; }
+  input[type="text"], input[type="password"], input[type="number"], select{
+    width:100%; padding:10px 12px; border:1px solid var(--line);
+    background: #fff; color: var(--ink);
+    border-radius:10px; outline:none;
+  }
+  input::placeholder{ color:#a1a1aa; }
+  .inline{
+    display:grid; grid-template-columns: 1fr 92px; gap:8px; align-items:center;
+  }
+  .tag{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding: 0 10px; min-height:38px; border:1px solid var(--line);
+    background: var(--soft); border-radius:10px; font-weight:700; color:#111827;
+  }
+
+  .btn{
+    width:100%; border:none; cursor:pointer; font-weight:800;
+    padding: 12px; border-radius: 12px; font-size: 1rem;
+    transition: transform .04s ease, filter .15s ease;
+  }
+  .btn:active{ transform: translateY(1px); }
+
+  .btn-accent{ background:var(--accent); color:#071422; }
+  .btn-accent:hover{ filter:brightness(.95); }
+
+  .btn-success{ background: var(--success); color:#062b13; }
+  .btn-success:hover{ filter:brightness(.95); }
+
+  .btn-danger{ background: var(--danger); color:#3b0a0a; }
+  .btn-danger:hover{ filter:brightness(.95); }
+
+  .pillRow{ display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; }
+  .pill{
+    background: var(--soft); border:1px solid var(--line); color:#111827;
+    padding:8px; border-radius:8px; text-align:center; font-weight:700; cursor:pointer;
+  }
+  .pill:hover{ filter:brightness(.97); }
+
+  .status{
+    margin-top:10px; text-align:center; font-weight:700; color:#fde68a;
+  }
+
+  /* Public key box – responsive wrapping with ellipsis on one line + tooltip */
+  .pubkey{
+    width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    border:1px solid var(--line); background:#fff; color:#111827;
+    padding:10px 12px; border-radius:10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* Tables (Orderbook) */
+  .tabs{ margin-top:18px; }
+  table{ width:100%; border-collapse:collapse; }
+  thead th{
+    text-align:left; font-size:.9rem; color:#374151; border-bottom:1px solid var(--line);
+    padding:10px 8px;
+  }
+  tbody td{ padding:10px 8px; border-bottom:1px dashed #e9edf3; }
+  .twrap{ background:#fff; border:1px solid var(--line); border-radius: var(--radius); overflow:hidden; box-shadow: var(--shadow); }
+
+  .muted{ color:#6b7280; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Laam DEX</h1>
+      <div class="balances">
+        <div>XLM: <span id="xlmBal">0.00</span></div>
+        <div>|</div>
+        <div>Laam: <span id="laamBal">0.00</span></div>
+      </div>
+    </header>
+
+    <!-- Create + Login -->
+    <div class="grid">
+      <div class="panel">
+        <div class="card">
+          <h2>Create New Account</h2>
+          <div class="row">
+            <button id="btnCreate" class="btn btn-accent">Generate New Stellar Account</button>
+          </div>
+          <div class="row">
+            <label>New Account Secret Key</label>
+            <div id="newSecret" class="pubkey" title="-">-</div>
+          </div>
+          <div class="row">
+            <label>New Account Public Key</label>
+            <div id="newPublic" class="pubkey" title="-">-</div>
+          </div>
+          <div class="help">Save your secret key in a safe place.</div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <h2>Login (Secret Key)</h2>
+          <div class="row">
+            <input type="password" id="secretKey" placeholder="Enter your Stellar secret key (starts with S...)" />
+          </div>
+          <div class="row"><button id="btnLoad" class="btn btn-accent">Load Account</button></div>
+          <div class="row"><button id="btnTrust" class="btn btn-accent" disabled>Add Trustline for Laam</button></div>
+          <div class="row">
+            <label>Public Key</label>
+            <div id="publicKeyBox" class="pubkey" title="-">-</div>
+          </div>
+          <div id="status" class="status"></div>
+        </div>
+      </div>
+
+      <!-- Trading Cards -->
+      <div class="panel">
+        <div class="grid" style="grid-template-columns:1fr 1fr;">
+          <!-- BUY -->
+          <div class="card">
+            <h2>Buy Laam <span class="muted" id="availXlm">(Available: 0 XLM)</span></h2>
+
+            <div class="row">
+              <label>Price</label>
+              <div class="inline">
+                <input type="number" id="buyPrice" placeholder="0.135" step="0.0000001" />
+                <div class="tag">XLM</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <label>Amount</label>
+              <div class="inline">
+                <input type="number" id="buyAmount" placeholder="Amount to buy" step="0.0000001" />
+                <div class="tag">Laam</div>
+              </div>
+            </div>
+
+            <div class="row pillRow">
+              <div class="pill" data-bp="25">25%</div>
+              <div class="pill" data-bp="50">50%</div>
+              <div class="pill" data-bp="75">75%</div>
+              <div class="pill" data-bp="100">100%</div>
+            </div>
+
+            <div class="row">
+              <label>Total</label>
+              <div class="inline">
+                <input type="number" id="buyTotal" placeholder="Auto" step="0.0000001" />
+                <div class="tag">XLM</div>
+              </div>
+            </div>
+
+            <div class="row"><button id="btnBuy" class="btn btn-success">Buy Laam</button></div>
+          </div>
+
+          <!-- SELL -->
+          <div class="card">
+            <h2>Sell Laam <span class="muted" id="availLaam">(Available: 0 Laam)</span></h2>
+
+            <div class="row">
+              <label>Price</label>
+              <div class="inline">
+                <input type="number" id="sellPrice" placeholder="0.135" step="0.0000001" />
+                <div class="tag">XLM</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <label>Amount</label>
+              <div class="inline">
+                <input type="number" id="sellAmount" placeholder="Amount to sell" step="0.0000001" />
+                <div class="tag">Laam</div>
+              </div>
+            </div>
+
+            <div class="row pillRow">
+              <div class="pill" data-sp="25">25%</div>
+              <div class="pill" data-sp="50">50%</div>
+              <div class="pill" data-sp="75">75%</div>
+              <div class="pill" data-sp="100">100%</div>
+            </div>
+
+            <div class="row">
+              <label>Total</label>
+              <div class="inline">
+                <input type="number" id="sellTotal" placeholder="Auto" step="0.0000001" />
+                <div class="tag">XLM</div>
+              </div>
+            </div>
+
+            <div class="row"><button id="btnSell" class="btn btn-danger">Sell Laam</button></div>
+          </div>
+        </div>
+
+        <!-- Orderbook -->
+        <div class="tabs" style="margin-top:16px;">
+          <div class="twrap">
+            <table>
+              <thead>
+                <tr>
+                  <th colspan="3">Buy offers</th>
+                  <th colspan="3">Sell offers</th>
+                </tr>
+                <tr>
+                  <th>Price (XLM)</th><th>Amount (Laam)</th><th>Total (XLM)</th>
+                  <th>Price (XLM)</th><th>Amount (Laam)</th><th>Total (XLM)</th>
+                </tr>
+              </thead>
+              <tbody id="orderRows">
+                <tr><td class="muted" colspan="6" style="text-align:center;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  // ===== Stellar (MAINNET) =====
+  const server = new StellarSdk.Server('https://horizon.stellar.org');
+  const ISSUER = 'GAL4ECDAXNBMJYFCWIJ32HKVIRLCNEXY664CAZYI3EINQWPLXTMEPR64';
+  const LAAM = new StellarSdk.Asset('Laam', ISSUER);
+  const XLM  = StellarSdk.Asset.native();
+
+  // UI refs
+  const statusEl = document.getElementById('status');
+  const xlmBalEl = document.getElementById('xlmBal');
+  const laamBalEl = document.getElementById('laamBal');
+  const availXlmEl = document.getElementById('availXlm');
+  const availLaamEl = document.getElementById('availLaam');
+  const publicKeyBox = document.getElementById('publicKeyBox');
+
+  const buyPrice = document.getElementById('buyPrice');
+  const buyAmount = document.getElementById('buyAmount');
+  const buyTotal = document.getElementById('buyTotal');
+
+  const sellPrice = document.getElementById('sellPrice');
+  const sellAmount = document.getElementById('sellAmount');
+  const sellTotal = document.getElementById('sellTotal');
+
+  const orderRows = document.getElementById('orderRows');
+
+  let kp = null, account = null, balTimer = null;
+
+  function setStatus(msg=''){ statusEl.textContent = msg; }
+
+  function fmt(n, d=6){
+    const x = parseFloat(n);
+    if(!isFinite(x)) return '0';
+    return x.toFixed(d).replace(/\.?0+$/,'');
+  }
+
+  function updatePubKey(pk){
+    publicKeyBox.title = pk || '-';
+    publicKeyBox.textContent = pk || '-';
+  }
+
+  function showBalances(bals){
+    let xlm=0, laam=0;
+    bals.forEach(b=>{
+      if(b.asset_type==='native') xlm = parseFloat(b.balance||0);
+      if(b.asset_code==='Laam' && b.asset_issuer===ISSUER) laam = parseFloat(b.balance||0);
+    });
+    xlmBalEl.textContent = fmt(xlm,2);
+    laamBalEl.textContent = fmt(laam,2);
+    availXlmEl.textContent = `(Available: ${fmt(xlm,2)} XLM)`;
+    availLaamEl.textContent = `(Available: ${fmt(laam,2)} Laam)`;
+  }
+
+  async function refreshBalances(){
+    if(!kp) return;
+    try{
+      account = await server.loadAccount(kp.publicKey());
+      showBalances(account.balances);
+    }catch(e){ console.warn(e); }
+  }
+
+  // ===== Create account (locally generated keys) =====
+  document.getElementById('btnCreate').addEventListener('click', ()=>{
+    const k = StellarSdk.Keypair.random();
+    document.getElementById('newSecret').textContent = k.secret();
+    document.getElementById('newSecret').title = k.secret();
+    document.getElementById('newPublic').textContent = k.publicKey();
+    document.getElementById('newPublic').title = k.publicKey();
+    setStatus('New account generated. Fund with XLM to activate.');
+  });
+
+  // ===== Load account with secret key =====
+  document.getElementById('btnLoad').addEventListener('click', async ()=>{
+    const s = document.getElementById('secretKey').value.trim();
+    if(!s){ alert('Enter your secret key'); return; }
+    try{
+      kp = StellarSdk.Keypair.fromSecret(s);
+      updatePubKey(kp.publicKey());
+      setStatus('Loading account...');
+      account = await server.loadAccount(kp.publicKey());
+      showBalances(account.balances);
+      document.getElementById('btnTrust').disabled = false;
+
+      // start auto refresh
+      if(balTimer) clearInterval(balTimer);
+      balTimer = setInterval(refreshBalances, 10000);
+
+      loadOrderbook();
+      setStatus('Account loaded.');
+    }catch(e){
+      console.error(e);
+      setStatus('Error loading account.');
+      updatePubKey('-');
+      document.getElementById('btnTrust').disabled = true;
+    }
+  });
+
+  // ===== Add trustline for Laam =====
+  document.getElementById('btnTrust').addEventListener('click', async ()=>{
+    if(!kp || !account){ alert('Load your account first'); return; }
+    // if trustline exists, skip
+    const exists = account.balances.some(b=>b.asset_code==='Laam' && b.asset_issuer===ISSUER);
+    if(exists){ alert('Trustline already exists.'); return; }
+    try{
+      const fee = await server.fetchBaseFee();
+      const tx = new StellarSdk.TransactionBuilder(account,{fee,networkPassphrase:StellarSdk.Networks.PUBLIC})
+        .addOperation(StellarSdk.Operation.changeTrust({asset:LAAM}))
+        .setTimeout(30).build();
+      tx.sign(kp);
+      await server.submitTransaction(tx);
+      setStatus('Trustline added.');
+      await refreshBalances();
+    }catch(e){ console.error(e); setStatus('Error adding trustline.'); }
+  });
+
+  // ===== Helpers for price conversions =====
+  // UI uses XLM per Laam. Horizon wants "selling per buying".
+  // - Buy Laam: selling XLM / buying Laam  -> price = Laam per XLM = 1 / (XLM per Laam)
+  // - Sell Laam: selling Laam / buying XLM -> price = Laam per XLM = 1 / (XLM per Laam)
+  function uiToHorizonPrice(xlmPerLaam){
+    const p = parseFloat(xlmPerLaam);
+    if(!isFinite(p) || p<=0) return null;
+    return (1/p).toString();
+  }
+  function invert(n){ const x = parseFloat(n); return (!isFinite(x)||x===0)?0:(1/x); }
+
+  // ===== Buy =====
+  function recalcBuy(){
+    const p = parseFloat(buyPrice.value);
+    const a = parseFloat(buyAmount.value);
+    if(isFinite(p) && isFinite(a)) buyTotal.value = (p*a).toFixed(7);
+  }
+  buyPrice.addEventListener('input', recalcBuy);
+  buyAmount.addEventListener('input', recalcBuy);
+  buyTotal.addEventListener('input', ()=>{
+    const p = parseFloat(buyPrice.value), t = parseFloat(buyTotal.value);
+    if(isFinite(p) && isFinite(t)) buyAmount.value = (t/p).toFixed(7);
+  });
+  document.querySelectorAll('[data-bp]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const pct = parseFloat(el.getAttribute('data-bp'))/100;
+      const xlmAvail = parseFloat(xlmBalEl.textContent)||0;
+      const p = parseFloat(buyPrice.value);
+      if(!p || !xlmAvail) return;
+      const tot = xlmAvail*pct;
+      const amt = tot / p;
+      buyTotal.value = tot.toFixed(7);
+      buyAmount.value = amt.toFixed(7);
+    });
+  });
+  document.getElementById('btnBuy').addEventListener('click', async ()=>{
+    if(!kp){ alert('Load your account first'); return; }
+    const p = uiToHorizonPrice(buyPrice.value);
+    const amt = parseFloat(buyAmount.value);
+    if(!p || !isFinite(amt) || amt<=0){ alert('Enter valid price and amount'); return; }
+    try{
+      const acc = await server.loadAccount(kp.publicKey());
+      const fee = await server.fetchBaseFee();
+      const tx = new StellarSdk.TransactionBuilder(acc,{fee,networkPassphrase:StellarSdk.Networks.PUBLIC})
+        .addOperation(StellarSdk.Operation.manageSellOffer({
+          selling: XLM, buying: LAAM, amount: amt.toFixed(7), price: p, offerId: '0'
+        }))
+        .setTimeout(30).build();
+      tx.sign(kp);
+      await server.submitTransaction(tx);
+      setStatus('Buy offer placed.');
+      refreshBalances(); loadOrderbook();
+    }catch(e){ console.error(e); setStatus('Error placing buy offer.'); }
+  });
+
+  // ===== Sell =====
+  function recalcSell(){
+    const p = parseFloat(sellPrice.value);
+    const a = parseFloat(sellAmount.value);
+    if(isFinite(p) && isFinite(a)) sellTotal.value = (p*a).toFixed(7);
+  }
+  sellPrice.addEventListener('input', recalcSell);
+  sellAmount.addEventListener('input', recalcSell);
+  sellTotal.addEventListener('input', ()=>{
+    const p = parseFloat(sellPrice.value), t = parseFloat(sellTotal.value);
+    if(isFinite(p) && isFinite(t)) sellAmount.value = (t/p).toFixed(7);
+  });
+  document.querySelectorAll('[data-sp]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const pct = parseFloat(el.getAttribute('data-sp'))/100;
+      const laamAvail = parseFloat(laamBalEl.textContent)||0;
+      const amt = laamAvail*pct;
+      sellAmount.value = amt.toFixed(7);
+      recalcSell();
+    });
+  });
+  document.getElementById('btnSell').addEventListener('click', async ()=>{
+    if(!kp){ alert('Load your account first'); return; }
+    const p = uiToHorizonPrice(sellPrice.value);
+    const amt = parseFloat(sellAmount.value);
+    if(!p || !isFinite(amt) || amt<=0){ alert('Enter valid price and amount'); return; }
+    try{
+      const acc = await server.loadAccount(kp.publicKey());
+      const fee = await server.fetchBaseFee();
+      const tx = new StellarSdk.TransactionBuilder(acc,{fee,networkPassphrase:StellarSdk.Networks.PUBLIC})
+        .addOperation(StellarSdk.Operation.manageSellOffer({
+          selling: LAAM, buying: XLM, amount: amt.toFixed(7), price: p, offerId: '0'
+        }))
+        .setTimeout(30).build();
+      tx.sign(kp);
+      await server.submitTransaction(tx);
+      setStatus('Sell offer placed.');
+      refreshBalances(); loadOrderbook();
+    }catch(e){ console.error(e); setStatus('Error placing sell offer.'); }
+  });
+
+  // ===== Orderbook (Laam/XLM shown as XLM per Laam) =====
+  async function loadOrderbook(){
+    try{
+      const ob = await server.orderbook(LAAM, XLM).call(); // price returned = Laam per XLM
+      const max = Math.max(ob.bids.length, ob.asks.length);
+      let html = '';
+      for(let i=0;i<max;i++){
+        const b = ob.bids[i], a = ob.asks[i];
+        const bp = b ? invert(b.price) : '';
+        const ba = b ? parseFloat(b.amount) : '';
+        const bt = b ? (bp*ba) : '';
+        const ap = a ? invert(a.price) : '';
+        const aa = a ? parseFloat(a.amount) : '';
+        const at = a ? (ap*aa) : '';
+        html += `<tr>
+          <td>${b?fmt(bp,6):''}</td><td>${b?fmt(ba,6):''}</td><td>${b?fmt(bt,6):''}</td>
+          <td>${a?fmt(ap,6):''}</td><td>${a?fmt(aa,6):''}</td><td>${a?fmt(at,6):''}</td>
+        </tr>`;
+      }
+      orderRows.innerHTML = html || `<tr><td class="muted" colspan="6" style="text-align:center;">No offers</td></tr>`;
+    }catch(e){
+      console.error(e);
+      orderRows.innerHTML = `<tr><td class="muted" colspan="6" style="text-align:center;">Error loading orderbook</td></tr>`;
+    }
+  }
+
+  // initial
+  loadOrderbook();
+  setInterval(loadOrderbook, 15000);
+</script>
+</body>
+  </html>
