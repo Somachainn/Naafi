@@ -440,7 +440,7 @@ function showView(viewName) {
 
 function setStatus(msg, type = "ok") {
     console.log(`[${type.toUpperCase()}] ${msg}`);
-    // alert(msg); // Removed alert for better UX
+    alert(msg); // Added alert for debugging
     statusEl.textContent = msg;
     statusEl.style.color = type === 'err' ? 'var(--err)' : 'var(--brand)';
 }
@@ -457,7 +457,7 @@ function showTradeTab(tabName) {
     if (tabName === "overview") {
         overviewTab.classList.add("active");
         overviewContent.style.display = "block";
-    } else if (tabName === "orderbook") {
+    } else if (tabName ===orderbook") {
         orderbookTab.classList.add("active");
         orderbookContent.style.display = "block";
     } else if (tabName === "lastTrades") {
